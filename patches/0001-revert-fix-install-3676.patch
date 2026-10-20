@@ -1,0 +1,196 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?ZX=E5=A4=8F=E5=A4=9C=E4=B9=8B=E9=A3=8E?=
+ <snwcreations@qq.com>
+Date: Tue, 20 Oct 2026 22:56:23 +0800
+Subject: [PATCH] =?UTF-8?q?revert:=20"fix(install):=20=E8=AF=BB=E5=8F=96?=
+ =?UTF-8?q?=E2=80=9C=E8=AE=BE=E5=A4=87=E8=AE=BE=E7=BD=AE=E5=8C=BA=E5=9F=9F?=
+ =?UTF-8?q?=E2=80=9D=20(#3676)"?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit 1a7653127d578efdb2a9388999a3fdc67d9e49d5.
+
+diff --git a/PCL.Core.Test/RegionPolicyTest.cs b/PCL.Core.Test/RegionPolicyTest.cs
+index cd708b6321a5559402fce595c9d99fea84d8f9be..966d9af0cb9a10f41ab9bd90fa962be0c2b6a768 100644
+--- a/PCL.Core.Test/RegionPolicyTest.cs
++++ b/PCL.Core.Test/RegionPolicyTest.cs
+@@ -60,53 +60,6 @@ public class RegionPolicyTest
+         Assert.AreEqual(RegionClassification.Other, result.Classification);
+     }
+ 
+-    [TestMethod]
+-    public void ChinaDeviceRegionRestrictsRegardlessOfOtherSignals()
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo: "JP", locale: "ja-JP", timeZone: "Tokyo Standard Time",
+-            deviceRegion: 45, deviceRegionAvailable: true));
+-        Assert.AreEqual(RegionClassification.Mainland, result.Classification);
+-        Assert.AreEqual("device-region-cn", result.Reason);
+-        Assert.IsTrue(result.IsRestricted);
+-    }
+-
+-    [TestMethod]
+-    public void ChinaDeviceRegionAloneRestricts()
+-    {
+-        var result = RegionPolicy.Evaluate(
+-            new RegionSignals(null, false, [], false, null, false, null, false, 45, true));
+-        Assert.AreEqual(RegionClassification.Mainland, result.Classification);
+-        Assert.IsTrue(result.IsRestricted);
+-    }
+-
+-    [TestMethod]
+-    public void NonChinaDeviceRegionDoesNotOverrideOtherSignals()
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo: "JP", locale: "ja-JP", timeZone: "Tokyo Standard Time",
+-            deviceRegion: 242, deviceRegionAvailable: true));
+-        Assert.AreEqual(RegionClassification.Other, result.Classification);
+-        Assert.IsFalse(result.IsRestricted);
+-    }
+-
+-    [TestMethod]
+-    public void NonChinaDeviceRegionAloneIsInsufficient()
+-    {
+-        var result = RegionPolicy.Evaluate(
+-            new RegionSignals(null, false, [], false, null, false, null, false, 242, true));
+-        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+-        Assert.IsTrue(result.IsRestricted);
+-    }
+-
+-    [TestMethod]
+-    public void DeviceRegionUsesWindowsGeoIdNotIsoNumericCode()
+-    {
+-        // GeoID 156 是马拉维，不是中国大陆（ISO 数字码 156）
+-        var result = RegionPolicy.Evaluate(
+-            new RegionSignals(null, false, [], false, null, false, null, false, 156, true));
+-        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+-        Assert.AreNotEqual("device-region-cn", result.Reason);
+-    }
+-
+     [TestMethod]
+     public void OneWeakLocaleSignalWithoutGeoOrTimeZoneIsUnknown()
+     {
+@@ -121,8 +74,7 @@ public class RegionPolicyTest
+     {
+         var result = RegionPolicy.Evaluate(Signals(geo: "US", languages: ["en-US", "zh-CN"],
+             locale: "en-US", timeZone: "China Standard Time"));
+-        Assert.AreEqual(RegionClassification.Other, result.Classification);
+-        Assert.IsFalse(result.IsRestricted);
++        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+     }
+ 
+     [TestMethod]
+@@ -135,8 +87,6 @@ public class RegionPolicyTest
+     }
+ 
+     private static RegionSignals Signals(string? geo = "US", IReadOnlyList<string>? languages = null,
+-        string? locale = "en-US", string? timeZone = "UTC", int? deviceRegion = null,
+-        bool deviceRegionAvailable = false) =>
+-        new(geo, true, languages ?? ["en-US"], true, locale, true, timeZone, true,
+-            deviceRegion, deviceRegionAvailable);
++        string? locale = "en-US", string? timeZone = "UTC") =>
++        new(geo, true, languages ?? ["en-US"], true, locale, true, timeZone, true);
+ }
+diff --git a/PCL.Core/App/Region/RegionPolicy.cs b/PCL.Core/App/Region/RegionPolicy.cs
+index df448316d3a47a1714326052c526dadb05d26dd4..994a6c458620465e908d345e1abed2a7c4f2a030 100644
+--- a/PCL.Core/App/Region/RegionPolicy.cs
++++ b/PCL.Core/App/Region/RegionPolicy.cs
+@@ -3,7 +3,6 @@ using System.Collections.Generic;
+ using System.Globalization;
+ using System.Linq;
+ using System.Runtime.InteropServices;
+-using Microsoft.Win32;
+ 
+ namespace PCL.Core.App.Region;
+ 
+@@ -22,9 +21,7 @@ public sealed record RegionSignals(
+     string? UserLocaleName,
+     bool UserLocaleAvailable,
+     string? TimeZoneId,
+-    bool TimeZoneAvailable,
+-    int? DeviceRegionGeoId = null,
+-    bool DeviceRegionAvailable = false);
++    bool TimeZoneAvailable);
+ 
+ public sealed record RegionAssessment(RegionClassification Classification, string Reason)
+ {
+@@ -33,13 +30,6 @@ public sealed record RegionAssessment(RegionClassification Classification, strin
+ 
+ public static partial class RegionPolicy
+ {
+-    private const int MainlandChinaGeoId = 45;
+-    private const string DeviceRegionRegistryPath =
+-        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion";
+-    private const string DeviceRegionValueName = "DeviceRegion";
+-    private static readonly RegistryView[] DeviceRegionRegistryViews =
+-        [RegistryView.Registry64, RegistryView.Registry32];
+-
+     private static readonly HashSet<string> ChinaTimeZones = new(StringComparer.OrdinalIgnoreCase)
+     {
+         "China Standard Time",
+@@ -54,10 +44,6 @@ public static partial class RegionPolicy
+         if (signals.GeoNameAvailable && IsChinaGeoName(signals.GeoName))
+             return new(RegionClassification.Mainland, "geo-cn");
+ 
+-        // 设备安装（OOBE）时选择的区域，独立于之后可修改的用户区域设置
+-        if (signals.DeviceRegionAvailable && IsChinaDeviceRegion(signals.DeviceRegionGeoId))
+-            return new(RegionClassification.Mainland, "device-region-cn");
+-
+         var chinaTimeZone = signals.TimeZoneAvailable &&
+                             signals.TimeZoneId is not null &&
+                             ChinaTimeZones.Contains(signals.TimeZoneId);
+@@ -90,7 +76,6 @@ public static partial class RegionPolicy
+         var geoName = TryReadGeoName(out var geoAvailable);
+         var languages = TryReadPreferredUiLanguages(out var languagesAvailable);
+         var locale = TryReadUserLocale(out var localeAvailable);
+-        var deviceRegion = TryReadDeviceRegion(out var deviceRegionAvailable);
+         string? timeZone = null;
+         var timeZoneAvailable = false;
+         try
+@@ -103,16 +88,12 @@ public static partial class RegionPolicy
+         }
+ 
+         return new RegionSignals(geoName, geoAvailable, languages, languagesAvailable,
+-            locale, localeAvailable, timeZone, timeZoneAvailable,
+-            deviceRegion, deviceRegionAvailable);
++            locale, localeAvailable, timeZone, timeZoneAvailable);
+     }
+ 
+     private static bool IsChinaGeoName(string? name) =>
+         string.Equals(name, "CN", StringComparison.OrdinalIgnoreCase) || name == "156";
+ 
+-    // Windows GeoID 与 ISO 3166 数字码不同，45 才是中国大陆
+-    private static bool IsChinaDeviceRegion(int? geoId) => geoId == MainlandChinaGeoId;
+-
+     private static bool IsValidCountryCode(string? name)
+     {
+         if (string.IsNullOrWhiteSpace(name) || name.Length != 2 || !name.All(char.IsAsciiLetter))
+@@ -251,29 +232,6 @@ public static partial class RegionPolicy
+         }
+     }
+ 
+-    private static int? TryReadDeviceRegion(out bool available)
+-    {
+-        available = false;
+-        foreach (var view in DeviceRegionRegistryViews)
+-        {
+-            try
+-            {
+-                using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+-                using var key = baseKey.OpenSubKey(DeviceRegionRegistryPath);
+-                if (key?.GetValue(DeviceRegionValueName) is not { } rawValue) continue;
+-                var geoId = Convert.ToInt32(rawValue, CultureInfo.InvariantCulture);
+-                available = true;
+-                return geoId;
+-            }
+-            catch
+-            {
+-                // 注册表视图不可访问或值格式异常时，继续尝试下一个视图
+-            }
+-        }
+-
+-        return null;
+-    }
+-
+     [LibraryImport("kernel32.dll", EntryPoint = "GetUserDefaultGeoName")]
+     private static unsafe partial int GetUserDefaultGeoName(char* geoName, int geoNameCount);
+ 

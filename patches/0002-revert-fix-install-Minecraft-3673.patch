@@ -1,0 +1,633 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?ZX=E5=A4=8F=E5=A4=9C=E4=B9=8B=E9=A3=8E?=
+ <snwcreations@qq.com>
+Date: Tue, 20 Oct 2026 22:56:50 +0800
+Subject: [PATCH] =?UTF-8?q?revert:=20"fix(install):=20=E4=B8=AD=E5=9B=BD?=
+ =?UTF-8?q?=E5=A4=A7=E9=99=86=E5=9C=B0=E5=8C=BA=E7=A6=81=E7=94=A8=20Minecr?=
+ =?UTF-8?q?aft=20=E5=AE=89=E8=A3=85=E5=8A=9F=E8=83=BD=20(#3673)"?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit 8cd9d37491f08e1f8365622517aefed429b5e095.
+
+diff --git a/PCL.Core.Test/RegionPolicyTest.cs b/PCL.Core.Test/RegionPolicyTest.cs
+deleted file mode 100644
+index 966d9af0cb9a10f41ab9bd90fa962be0c2b6a768..0000000000000000000000000000000000000000
+--- a/PCL.Core.Test/RegionPolicyTest.cs
++++ /dev/null
+@@ -1,92 +0,0 @@
+-using System.Collections.Generic;
+-using Microsoft.VisualStudio.TestTools.UnitTesting;
+-using PCL.Core.App.Region;
+-
+-namespace PCL.Core.Test;
+-
+-[TestClass]
+-public class RegionPolicyTest
+-{
+-    [TestMethod]
+-    public void ChinaGeoRestrictsRegardlessOfLanguage()
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo: "CN", languages: ["en-US"], locale: "en-US"));
+-        Assert.AreEqual(RegionClassification.Mainland, result.Classification);
+-    }
+-
+-    [TestMethod]
+-    public void ChinaTimeZoneAndExplicitChinaLocaleRestrictEvenWithOtherGeo()
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo: "US", languages: ["zh-CN", "en-US"], locale: "en-US",
+-            timeZone: "China Standard Time"));
+-        Assert.AreEqual(RegionClassification.Mainland, result.Classification);
+-    }
+-
+-    [DataTestMethod]
+-    [DataRow("HK", "zh-HK", "Asia/Hong_Kong")]
+-    [DataRow("MO", "zh-MO", "Asia/Macau")]
+-    [DataRow("TW", "zh-TW", "Asia/Taipei")]
+-    [DataRow("SG", "zh-SG", "Asia/Singapore")]
+-    public void OtherChineseLocalesDoNotRestrict(string geo, string locale, string timeZone)
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo, [locale], locale, timeZone));
+-        Assert.AreEqual(RegionClassification.Other, result.Classification);
+-        Assert.IsFalse(result.IsRestricted);
+-    }
+-
+-    [TestMethod]
+-    public void MissingSignalsRestrictAsUnknown()
+-    {
+-        var result = RegionPolicy.Evaluate(new RegionSignals(null, false, [], false, null, false, null, false));
+-        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+-        Assert.IsTrue(result.IsRestricted);
+-        Assert.AreEqual("signals-unavailable", result.Reason);
+-    }
+-
+-    [TestMethod]
+-    public void AvailableButInsufficientSignalsUseInsufficientReason()
+-    {
+-        var result = RegionPolicy.Evaluate(new RegionSignals(null, false, ["en"], true,
+-            null, false, "China Standard Time", true));
+-        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+-        Assert.AreEqual("insufficient-signals", result.Reason);
+-    }
+-
+-    [TestMethod]
+-    public void ChinaTimeZoneAloneIsInsufficient()
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo: "US", languages: ["en-US"], locale: "en-US",
+-            timeZone: "China Standard Time"));
+-        Assert.AreEqual(RegionClassification.Other, result.Classification);
+-    }
+-
+-    [TestMethod]
+-    public void OneWeakLocaleSignalWithoutGeoOrTimeZoneIsUnknown()
+-    {
+-        var result = RegionPolicy.Evaluate(new RegionSignals(null, false, ["zh-CN"], true,
+-            null, false, null, false));
+-        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+-        Assert.IsTrue(result.IsRestricted);
+-    }
+-
+-    [TestMethod]
+-    public void SecondaryPreferredLanguageDoesNotCountAsTheSystemDisplayLanguage()
+-    {
+-        var result = RegionPolicy.Evaluate(Signals(geo: "US", languages: ["en-US", "zh-CN"],
+-            locale: "en-US", timeZone: "China Standard Time"));
+-        Assert.AreEqual(RegionClassification.Unknown, result.Classification);
+-    }
+-
+-    [TestMethod]
+-    public void ExplicitOtherLocaleAndOtherTimeZoneWithoutGeoAreAllowed()
+-    {
+-        var result = RegionPolicy.Evaluate(new RegionSignals(null, false, ["en-US"], true,
+-            "en-US", true, "America/Los_Angeles", true));
+-        Assert.AreEqual(RegionClassification.Other, result.Classification);
+-        Assert.IsFalse(result.IsRestricted);
+-    }
+-
+-    private static RegionSignals Signals(string? geo = "US", IReadOnlyList<string>? languages = null,
+-        string? locale = "en-US", string? timeZone = "UTC") =>
+-        new(geo, true, languages ?? ["en-US"], true, locale, true, timeZone, true);
+-}
+diff --git a/PCL.Core/App/Localization/Languages/en-US.xaml b/PCL.Core/App/Localization/Languages/en-US.xaml
+index 780424100084e606a534eda7a279794c4796d269..0e27319dba8ac90ceb5c5a0e966602fa3d5ad439 100644
+--- a/PCL.Core/App/Localization/Languages/en-US.xaml
++++ b/PCL.Core/App/Localization/Languages/en-US.xaml
+@@ -3636,6 +3636,4 @@
+     <sys:String x:Key="Watcher.WindowLoaded">Minecraft window loaded: {0} ({1})</sys:String>
+     <sys:String x:Key="Watcher.WindowMaximized">Minecraft window maximized: {0}</sys:String>
+ 
+-    <sys:String x:Key="Region.Feature.Restricted">Minecraft downloads, repairs, and modpack installation are unavailable in your country or region.</sys:String>
+-    <sys:String x:Key="Region.Feature.Unknown">Could not determine region info. Minecraft downloads, repairs, and modpack installation are temporarily unavailable.</sys:String>
+ </ResourceDictionary>
+diff --git a/PCL.Core/App/Localization/Languages/zh-CN.xaml b/PCL.Core/App/Localization/Languages/zh-CN.xaml
+index 863c30aabebe6d322474d715e483c4aefd88a5f6..51a02f55df87e8ea9ef854c7cb1c98dadd899548 100644
+--- a/PCL.Core/App/Localization/Languages/zh-CN.xaml
++++ b/PCL.Core/App/Localization/Languages/zh-CN.xaml
+@@ -3636,6 +3636,4 @@
+     <sys:String x:Key="Watcher.WindowLoaded">Minecraft 窗口已加载：{0}（{1}）</sys:String>
+     <sys:String x:Key="Watcher.WindowMaximized">已最大化 Minecraft 窗口：{0}</sys:String>
+ 
+-    <sys:String x:Key="Region.Feature.Restricted">Minecraft 下载、补全与整合包安装功能在你所在的国家或地区不可用。</sys:String>
+-    <sys:String x:Key="Region.Feature.Unknown">无法获取区域信息，暂时无法使用 Minecraft 下载、补全与整合包安装功能。</sys:String>
+ </ResourceDictionary>
+diff --git a/PCL.Core/App/Region/RegionPolicy.cs b/PCL.Core/App/Region/RegionPolicy.cs
+deleted file mode 100644
+index 994a6c458620465e908d345e1abed2a7c4f2a030..0000000000000000000000000000000000000000
+--- a/PCL.Core/App/Region/RegionPolicy.cs
++++ /dev/null
+@@ -1,250 +0,0 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Globalization;
+-using System.Linq;
+-using System.Runtime.InteropServices;
+-
+-namespace PCL.Core.App.Region;
+-
+-public enum RegionClassification
+-{
+-    Unknown,
+-    Other,
+-    Mainland
+-}
+-
+-public sealed record RegionSignals(
+-    string? GeoName,
+-    bool GeoNameAvailable,
+-    IReadOnlyList<string> PreferredUiLanguages,
+-    bool PreferredUiLanguagesAvailable,
+-    string? UserLocaleName,
+-    bool UserLocaleAvailable,
+-    string? TimeZoneId,
+-    bool TimeZoneAvailable);
+-
+-public sealed record RegionAssessment(RegionClassification Classification, string Reason)
+-{
+-    public bool IsRestricted => Classification is RegionClassification.Mainland or RegionClassification.Unknown;
+-}
+-
+-public static partial class RegionPolicy
+-{
+-    private static readonly HashSet<string> ChinaTimeZones = new(StringComparer.OrdinalIgnoreCase)
+-    {
+-        "China Standard Time",
+-        "Asia/Shanghai",
+-        "PRC"
+-    };
+-
+-    public static RegionAssessment Evaluate(RegionSignals signals)
+-    {
+-        ArgumentNullException.ThrowIfNull(signals);
+-
+-        if (signals.GeoNameAvailable && IsChinaGeoName(signals.GeoName))
+-            return new(RegionClassification.Mainland, "geo-cn");
+-
+-        var chinaTimeZone = signals.TimeZoneAvailable &&
+-                            signals.TimeZoneId is not null &&
+-                            ChinaTimeZones.Contains(signals.TimeZoneId);
+-        var hasChinaLocale = signals.UserLocaleAvailable && IsChinaLocale(signals.UserLocaleName);
+-        var hasChinaPreferredLanguage = signals.PreferredUiLanguagesAvailable &&
+-                                        IsChinaLocale(signals.PreferredUiLanguages.FirstOrDefault());
+-
+-        if (chinaTimeZone && (hasChinaLocale || hasChinaPreferredLanguage))
+-            return new(RegionClassification.Mainland, "china-time-zone-and-locale");
+-
+-        if (signals.GeoNameAvailable && IsValidCountryCode(signals.GeoName) &&
+-            !IsChinaGeoName(signals.GeoName))
+-            return new(RegionClassification.Other, "geo-other");
+-
+-        var hasExplicitOtherLocale = signals.UserLocaleAvailable && IsExplicitOtherLocale(signals.UserLocaleName) ||
+-                                     signals.PreferredUiLanguagesAvailable &&
+-                                     IsExplicitOtherLocale(signals.PreferredUiLanguages.FirstOrDefault());
+-        if (!signals.GeoNameAvailable && signals.TimeZoneAvailable && !chinaTimeZone && hasExplicitOtherLocale)
+-            return new(RegionClassification.Other, "other-time-zone-and-locale");
+-
+-        if (!signals.GeoNameAvailable && !signals.PreferredUiLanguagesAvailable &&
+-            !signals.UserLocaleAvailable && !signals.TimeZoneAvailable)
+-            return new(RegionClassification.Unknown, "signals-unavailable");
+-
+-        return new(RegionClassification.Unknown, "insufficient-signals");
+-    }
+-
+-    public static RegionSignals ReadWindowsSignals()
+-    {
+-        var geoName = TryReadGeoName(out var geoAvailable);
+-        var languages = TryReadPreferredUiLanguages(out var languagesAvailable);
+-        var locale = TryReadUserLocale(out var localeAvailable);
+-        string? timeZone = null;
+-        var timeZoneAvailable = false;
+-        try
+-        {
+-            timeZone = TimeZoneInfo.Local.Id;
+-            timeZoneAvailable = !string.IsNullOrWhiteSpace(timeZone);
+-        }
+-        catch
+-        {
+-        }
+-
+-        return new RegionSignals(geoName, geoAvailable, languages, languagesAvailable,
+-            locale, localeAvailable, timeZone, timeZoneAvailable);
+-    }
+-
+-    private static bool IsChinaGeoName(string? name) =>
+-        string.Equals(name, "CN", StringComparison.OrdinalIgnoreCase) || name == "156";
+-
+-    private static bool IsValidCountryCode(string? name)
+-    {
+-        if (string.IsNullOrWhiteSpace(name) || name.Length != 2 || !name.All(char.IsAsciiLetter))
+-            return false;
+-        try
+-        {
+-            _ = new RegionInfo(name);
+-            return true;
+-        }
+-        catch (ArgumentException)
+-        {
+-            return false;
+-        }
+-    }
+-
+-    private static bool IsChinaLocale(string? localeName)
+-    {
+-        if (string.IsNullOrWhiteSpace(localeName)) return false;
+-        try
+-        {
+-            return string.Equals(CultureInfo.GetCultureInfo(localeName.Replace('_', '-')).Name,
+-                "zh-CN", StringComparison.OrdinalIgnoreCase) ||
+-                   CultureInfo.GetCultureInfo(localeName.Replace('_', '-')).Name.EndsWith("-CN",
+-                       StringComparison.OrdinalIgnoreCase);
+-        }
+-        catch (CultureNotFoundException)
+-        {
+-            return false;
+-        }
+-    }
+-
+-    private static bool IsExplicitOtherLocale(string? localeName)
+-    {
+-        if (string.IsNullOrWhiteSpace(localeName)) return false;
+-        try
+-        {
+-            var culture = CultureInfo.GetCultureInfo(localeName.Replace('_', '-'));
+-            return !culture.IsNeutralCulture &&
+-                   !string.Equals(new RegionInfo(culture.Name).TwoLetterISORegionName, "CN",
+-                       StringComparison.OrdinalIgnoreCase);
+-        }
+-        catch (Exception ex) when (ex is CultureNotFoundException or ArgumentException)
+-        {
+-            return false;
+-        }
+-    }
+-
+-    private static unsafe string? TryReadGeoName(out bool available)
+-    {
+-        available = false;
+-        try
+-        {
+-            var buffer = new char[16];
+-            int length;
+-            fixed (char* bufferPointer = buffer)
+-                length = GetUserDefaultGeoName(bufferPointer, buffer.Length);
+-            if (length > 1 && length <= buffer.Length)
+-            {
+-                available = true;
+-                return new string(buffer, 0, length - 1);
+-            }
+-            return TryReadLegacyGeoName(out available);
+-        }
+-        catch
+-        {
+-            return TryReadLegacyGeoName(out available);
+-        }
+-    }
+-
+-    private static unsafe string? TryReadLegacyGeoName(out bool available)
+-    {
+-        available = false;
+-        try
+-        {
+-            var geoId = GetUserGeoID(16); // GEOCLASS_NATION
+-            if (geoId <= 0) return null;
+-            var buffer = new char[16];
+-            int length;
+-            fixed (char* bufferPointer = buffer)
+-                length = GetGeoInfoW(geoId, 4, bufferPointer, buffer.Length, 0); // GEO_ISO2
+-            if (length <= 1 || length > buffer.Length) return null;
+-            available = true;
+-            return new string(buffer, 0, length - 1);
+-        }
+-        catch
+-        {
+-            return null;
+-        }
+-    }
+-
+-    private static unsafe IReadOnlyList<string> TryReadPreferredUiLanguages(out bool available)
+-    {
+-        available = false;
+-        try
+-        {
+-            uint count = 0;
+-            uint chars = 0;
+-            _ = GetUserPreferredUILanguages(8, &count, null, &chars); // MUI_LANGUAGE_NAME
+-            if (chars == 0 || chars > 32768) return Array.Empty<string>();
+-            var buffer = Marshal.AllocHGlobal(checked((int)chars * sizeof(char)));
+-            try
+-            {
+-                if (GetUserPreferredUILanguages(8, &count, (char*)buffer, &chars) == 0)
+-                    return Array.Empty<string>();
+-                var values = new string((char*)buffer, 0, checked((int)chars));
+-                available = true;
+-                return values.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+-            }
+-            finally
+-            {
+-                Marshal.FreeHGlobal(buffer);
+-            }
+-        }
+-        catch
+-        {
+-            return Array.Empty<string>();
+-        }
+-    }
+-
+-    private static unsafe string? TryReadUserLocale(out bool available)
+-    {
+-        available = false;
+-        try
+-        {
+-            var buffer = new char[85];
+-            int length;
+-            fixed (char* bufferPointer = buffer)
+-                length = GetUserDefaultLocaleName(bufferPointer, buffer.Length);
+-            if (length <= 1 || length > buffer.Length) return null;
+-            available = true;
+-            return new string(buffer, 0, length - 1);
+-        }
+-        catch
+-        {
+-            return null;
+-        }
+-    }
+-
+-    [LibraryImport("kernel32.dll", EntryPoint = "GetUserDefaultGeoName")]
+-    private static unsafe partial int GetUserDefaultGeoName(char* geoName, int geoNameCount);
+-
+-    [LibraryImport("kernel32.dll", EntryPoint = "GetUserDefaultLocaleName")]
+-    private static unsafe partial int GetUserDefaultLocaleName(char* localeName, int localeNameCount);
+-
+-    [LibraryImport("kernel32.dll", EntryPoint = "GetUserPreferredUILanguages")]
+-    private static unsafe partial int GetUserPreferredUILanguages(uint flags, uint* languageCount,
+-        char* languageBuffer, uint* bufferChars);
+-
+-    [LibraryImport("kernel32.dll", EntryPoint = "GetUserGeoID")]
+-    private static partial int GetUserGeoID(int geoClass);
+-
+-    [LibraryImport("kernel32.dll", EntryPoint = "GetGeoInfoW")]
+-    private static unsafe partial int GetGeoInfoW(int location, int geoType, char* geoData, int dataSize, int flags);
+-}
+diff --git a/Plain Craft Launcher 2/Modules/Minecraft/ModDownload.cs b/Plain Craft Launcher 2/Modules/Minecraft/ModDownload.cs
+index 47114be82bf5615084fcda01478056fba72ccae5..4d3ba6f2e9cd183ff99d91c0ce44146dab952614 100644
+--- a/Plain Craft Launcher 2/Modules/Minecraft/ModDownload.cs	
++++ b/Plain Craft Launcher 2/Modules/Minecraft/ModDownload.cs	
+@@ -198,37 +198,6 @@ public static class ModDownload
+         return loaders;
+     }
+ 
+-    /// <summary>
+-    ///     只读取本地文件，判断实例是否可以在不下载 Minecraft 文件的情况下启动。
+-    /// </summary>
+-    public static bool McClientFilesAvailableLocally(McInstance instance)
+-    {
+-        try
+-        {
+-            if (!instance.IsLoaded) instance.Load();
+-            if (!File.Exists(Path.Combine(instance.PathInstance, instance.Name + ".json"))) return false;
+-            var libraries = ModLibrary.McLibListGet(instance, true);
+-            foreach (var library in libraries)
+-            {
+-                if (library.IsLocal) continue;
+-                var checker = new ModBase.FileChecker(
+-                    minSize: 1,
+-                    actualSize: library.size > 0 ? library.size : -1,
+-                    hash: library.Sha1);
+-                if (checker.Check(library.LocalPath) is not null) return false;
+-            }
+-
+-            var assets = ModAssets.McAssetsListGet(instance);
+-            return assets.All(asset => File.Exists(asset.localPath) && new FileInfo(asset.localPath).Length > 0 &&
+-                                       (asset.size <= 0 || new FileInfo(asset.localPath).Length == asset.size));
+-        }
+-        catch (Exception ex)
+-        {
+-            ModBase.Log(ex, "本地检查 Minecraft 文件失败");
+-            return false;
+-        }
+-    }
+-
+     public enum AssetsIndexExistsBehaviour
+     {
+         /// <summary>
+diff --git a/Plain Craft Launcher 2/Modules/Minecraft/ModLaunch.cs b/Plain Craft Launcher 2/Modules/Minecraft/ModLaunch.cs
+index bd9d41107ce9a4efa86b02cd26d6564ce411b988..535b2ba4cc023772f46571b63227bf3e00c25c58 100644
+--- a/Plain Craft Launcher 2/Modules/Minecraft/ModLaunch.cs	
++++ b/Plain Craft Launcher 2/Modules/Minecraft/ModLaunch.cs	
+@@ -337,22 +337,13 @@ public static class ModLaunch
+         try
+         {
+             // 构造主加载器
+-            var skipClientDownloads = RestrictedFeaturePolicy.IsRestricted;
+-            if (skipClientDownloads && !ModDownload.McClientFilesAvailableLocally(ModInstanceList.McMcInstanceSelected))
+-            {
+-                RestrictedFeaturePolicy.Check("minecraft-launch-missing-files");
+-                throw new ModBase.CancelledException();
+-            }
+-
+             var loaders = new List<ModLoader.LoaderBase>
+             {
+                 new ModLoader.LoaderTask<int, int>(Lang.Text("Minecraft.Launch.Stage.GetJava"), McLaunchJava) { ProgressWeight = 4d, block = false },
+                 mcLoginLoader,
+                 new ModLoader.LoaderCombo<string>(Lang.Text("Minecraft.Launch.Stage.CompleteFiles"),
+-                        skipClientDownloads
+-                            ? new List<ModLoader.LoaderBase>()
+-                            : ModDownload.DlClientFix(ModInstanceList.McMcInstanceSelected, false,
+-                                ModDownload.AssetsIndexExistsBehaviour.DownloadInBackground))
++                        ModDownload.DlClientFix(ModInstanceList.McMcInstanceSelected, false,
++                            ModDownload.AssetsIndexExistsBehaviour.DownloadInBackground))
+                     { ProgressWeight = 15d, show = false },
+                 new ModLoader.LoaderTask<string, List<ModLibrary.McLibToken>>(Lang.Text("Minecraft.Launch.Stage.GetArguments"), McLaunchArgumentMain)
+                     { ProgressWeight = 2d },
+diff --git a/Plain Craft Launcher 2/Modules/Minecraft/ModModpack.cs b/Plain Craft Launcher 2/Modules/Minecraft/ModModpack.cs
+index a46591291429f3b0d6bd4ff8ded213dc69818d6e..6af4bbb326ad21d662161dbf410d3c106a67d2c9 100644
+--- a/Plain Craft Launcher 2/Modules/Minecraft/ModModpack.cs	
++++ b/Plain Craft Launcher 2/Modules/Minecraft/ModModpack.cs	
+@@ -22,8 +22,6 @@ public static class ModModpack
+     /// </summary>
+     public static void ModpackInstall()
+     {
+-        if (!RestrictedFeaturePolicy.Check("modpack-install"))
+-            return;
+         var file = SystemDialogs.SelectFile(Lang.Text("Minecraft.Download.Modpack.FileDialog.Filter"),
+             Lang.Text("Minecraft.Download.Modpack.FileDialog.Title")); // 选择整合包文件
+         if (string.IsNullOrEmpty(file))
+@@ -56,7 +54,6 @@ public static class ModModpack
+     public static LoaderCombo<string> ModpackInstall(string file, string instanceName = null, string logo = null,
+         string resourceId = null, bool isOnlineInstall = false)
+     {
+-        RestrictedFeaturePolicy.ThrowIfRestricted("modpack-install");
+         ModBase.Log("[ModPack] 整合包安装请求：" + (file ?? "null"));
+         ZipArchive archive = null;
+         var archiveBaseFolder = "";
+diff --git a/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs b/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs
+deleted file mode 100644
+index 252e4bb09b017285ca93cf3ccda5f177b2c2913a..0000000000000000000000000000000000000000
+--- a/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs	
++++ /dev/null
+@@ -1,33 +0,0 @@
+-using PCL.Core.App.Region;
+-using PCL.Core.App.Localization;
+-using PCL.Core.UI;
+-
+-namespace PCL;
+-
+-internal static class RestrictedFeaturePolicy
+-{
+-    internal static RegionAssessment Assess() => RegionPolicy.Evaluate(RegionPolicy.ReadWindowsSignals());
+-
+-    internal static bool IsRestricted => Assess().IsRestricted;
+-
+-    internal static bool Check(string feature, bool showHint = true)
+-    {
+-        var assessment = Assess();
+-        if (!assessment.IsRestricted) return true;
+-
+-        ModBase.Log($"[RegionPolicy] 已阻止功能 {feature}，判定原因：{assessment.Reason}");
+-        if (showHint)
+-        {
+-            HintService.Hint(Lang.Text(assessment.Classification == RegionClassification.Unknown
+-                ? "Region.Feature.Unknown"
+-                : "Region.Feature.Restricted"), HintType.Error);
+-        }
+-        return false;
+-    }
+-
+-    internal static void ThrowIfRestricted(string feature)
+-    {
+-        if (Check(feature, false)) return;
+-        throw new ModBase.CancelledException();
+-    }
+-}
+diff --git a/Plain Craft Launcher 2/Pages/PageDownload/Comp/PageDownloadCompDetail.xaml.cs b/Plain Craft Launcher 2/Pages/PageDownload/Comp/PageDownloadCompDetail.xaml.cs
+index 0c1d28d7d4c716320647da47eccfa8def2410dd3..993dea44be6805741af3ce22b1e4895fac6758f3 100644
+--- a/Plain Craft Launcher 2/Pages/PageDownload/Comp/PageDownloadCompDetail.xaml.cs	
++++ b/Plain Craft Launcher 2/Pages/PageDownload/Comp/PageDownloadCompDetail.xaml.cs	
+@@ -62,7 +62,6 @@ public partial class PageDownloadCompDetail
+     // 整合包安装
+     public void Install_Click(MyListItem sender, EventArgs e)
+     {
+-        if (!RestrictedFeaturePolicy.Check("online-modpack-install")) return;
+         try
+         {
+             // 获取基本信息
+diff --git a/Plain Craft Launcher 2/Pages/PageDownload/ModDownloadLib.cs b/Plain Craft Launcher 2/Pages/PageDownload/ModDownloadLib.cs
+index abd37677e8ec9906d84f86e9e8d316633c16ed01..d2f0cac45e6d984f656079bdcdcfcd6585a1d4a1 100644
+--- a/Plain Craft Launcher 2/Pages/PageDownload/ModDownloadLib.cs	
++++ b/Plain Craft Launcher 2/Pages/PageDownload/ModDownloadLib.cs	
+@@ -68,7 +68,6 @@ public static class ModDownloadLib
+     public static ModLoader.LoaderCombo<string> McDownloadClient(NetPreDownloadBehaviour behaviour, string id,
+         string jsonUrl = null)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-client-download")) return null;
+         try
+         {
+             var versionFolder = Path.Combine(ModFolder.mcFolderSelected, "versions", id);
+@@ -135,7 +134,6 @@ public static class ModDownloadLib
+     /// <param name="jsonUrl">Json 文件的 Mojang 官方地址。</param>
+     public static void McDownloadClientCore(string id, string jsonUrl, NetPreDownloadBehaviour behaviour)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-client-save")) return;
+         try
+         {
+             var versionFolder = SystemDialogs.SelectFolder();
+@@ -533,7 +531,6 @@ public static class ModDownloadLib
+ 
+     public static void McDownloadMenuSave(object sender, RoutedEventArgs e)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-client-save")) return;
+         var element = (FrameworkElement)sender;
+         MyListItem version;
+         if (element is MyListItem s1) version = s1;
+@@ -3738,7 +3735,6 @@ public static class ModDownloadLib
+     /// </summary>
+     public static bool McInstall(McInstallRequest request, string type = mcInstallDefaultType)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-install")) return false;
+         try
+         {
+             var subLoaders = McInstallLoader(request, ignoreDump: type != mcInstallDefaultType);
+@@ -3795,7 +3791,6 @@ public static class ModDownloadLib
+     public static List<ModLoader.LoaderBase> McInstallLoader(McInstallRequest request, bool dontFixLibraries = false,
+         bool ignoreDump = false)
+     {
+-        RestrictedFeaturePolicy.ThrowIfRestricted("minecraft-install");
+         // 获取缓存目录（安装 Mod 加载器的文件夹不能包含空格）
+         var tempMcFolder = ModMain.RequestTaskTempFolder(request.optiFineEntry is not null ||
+                                                          request.forgeEntry is not null ||
+diff --git a/Plain Craft Launcher 2/Pages/PageDownload/PageDownloadInstall.xaml.cs b/Plain Craft Launcher 2/Pages/PageDownload/PageDownloadInstall.xaml.cs
+index 85596b6caf3c3d46fad87fc5bafb4c04128e3fb0..9217fd8167f77ad230f3ff004b5f3cf965ee1d35 100644
+--- a/Plain Craft Launcher 2/Pages/PageDownload/PageDownloadInstall.xaml.cs	
++++ b/Plain Craft Launcher 2/Pages/PageDownload/PageDownloadInstall.xaml.cs	
+@@ -2327,7 +2327,6 @@ public partial class PageDownloadInstall
+ 
+     private void BtnStart_Click()
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-install")) return;
+         // 确认版本隔离
+         if (_selectedLoaderType is not null &&
+             (Config.Launch.IndieSolutionV2 == 0 ||
+diff --git a/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceInstall.xaml.cs b/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceInstall.xaml.cs
+index 0a055bea5856657ccf828a17f7504418fa4e744c..856c78f6e563f56a015c430e2503d325539b9611 100644
+--- a/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceInstall.xaml.cs	
++++ b/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceInstall.xaml.cs	
+@@ -98,7 +98,6 @@ public partial class PageInstanceInstall
+ 
+     private void BtnSelectStart_Click(object sender, MouseButtonEventArgs mouseButtonEventArgs)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-loader-install")) return;
+         // Quilt 实例无法通过安装管线重装/修改（已移除 Quilt 安装支持）
+         if (PageInstanceLeft.McInstance.Info.HasQuilt)
+         {
+diff --git a/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceOverall.xaml.cs b/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceOverall.xaml.cs
+index 50e2ed4b56f625753d698486f54c83e6c66eb694..d9ec4f5d0dbe58779f0f6ca53adc11b2043f2f53 100644
+--- a/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceOverall.xaml.cs	
++++ b/Plain Craft Launcher 2/Pages/PageInstance/PageInstanceOverall.xaml.cs	
+@@ -575,7 +575,6 @@ public partial class PageInstanceOverall
+     // 补全文件
+     private void BtnManageCheck_Click(object sender, MouseButtonEventArgs e)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-repair")) return;
+         try
+         {
+             // 忽略文件检查提示
+@@ -642,7 +641,6 @@ public partial class PageInstanceOverall
+     // 重置
+     private void BtnManageRestore_Click(object sender, MouseButtonEventArgs e)
+     {
+-        if (!RestrictedFeaturePolicy.Check("minecraft-reset")) return;
+         try
+         {
+             var currentVersion = PageInstanceLeft.McInstance.Info;
+diff --git a/Plain Craft Launcher 2/Pages/PageLaunch/PageLaunchLeft.xaml.cs b/Plain Craft Launcher 2/Pages/PageLaunch/PageLaunchLeft.xaml.cs
+index d19d27a498514b79aea013c45eacddca9ea26db4..0696b84460637bef4657f6a9acacf223eaac3711 100644
+--- a/Plain Craft Launcher 2/Pages/PageLaunch/PageLaunchLeft.xaml.cs	
++++ b/Plain Craft Launcher 2/Pages/PageLaunch/PageLaunchLeft.xaml.cs	
+@@ -94,8 +94,6 @@ public partial class PageLaunchLeft
+                 packInstallPath = Path.Combine(ModBase.exePath, "modpack.zip");
+             if (File.Exists(Path.Combine(ModBase.exePath, "modpack.mrpack")))
+                 packInstallPath = Path.Combine(ModBase.exePath, "modpack.mrpack");
+-            if (packInstallPath is not null && !RestrictedFeaturePolicy.Check("auto-modpack-install"))
+-                packInstallPath = null;
+             if (packInstallPath is not null)
+             {
+                 ModBase.Log("[Launch] 需自动安装整合包：" + packInstallPath, ModBase.LogLevel.Debug);

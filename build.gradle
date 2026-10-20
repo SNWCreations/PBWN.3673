@@ -1,0 +1,24 @@
+plugins {
+    id "ca.stellardrift.gitpatcher" version "2.0.0"
+}
+
+group = "snw"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+}
+
+gitPatcher.patchedRepos {
+    "main" {
+        // The submodule path you just created
+        submodule = "upstream"
+        // The target folder for the patched repositories
+        target = file("target")
+        // The folder where the patches are saved
+        patches = file("patches")
+    }
+}

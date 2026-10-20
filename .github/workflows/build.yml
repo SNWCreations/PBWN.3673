@@ -1,0 +1,150 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - configuration: Release
+            architecture: x64
+          - configuration: Release
+            architecture: ARM64
+      fail-fast: false
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Apply patches
+        run: ./gradlew applyPatches
+
+      - name: Get upstream commit info
+        id: upstream
+        run: |
+          cd upstream
+          UPSTREAM_COMMIT=$(git rev-parse --short HEAD)
+          UPSTREAM_COMMIT_FULL=$(git rev-parse HEAD)
+          UPSTREAM_TAG=$(git describe --tags --always)
+          echo "short=$UPSTREAM_COMMIT" >> $GITHUB_OUTPUT
+          echo "full=$UPSTREAM_COMMIT_FULL" >> $GITHUB_OUTPUT
+          echo "tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Project
+        run: |
+          cd target
+          dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
+            -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.architecture }} \
+            -p:DeleteExistingFiles=true -o ../artifact/${{ matrix.architecture }} --no-self-contained
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCL2_CE_Patched_${{ matrix.configuration }}_${{ matrix.architecture }}
+          path: artifact/${{ matrix.architecture }}/**
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Get upstream commit info
+        id: upstream
+        run: |
+          cd upstream
+          UPSTREAM_COMMIT=$(git rev-parse --short HEAD)
+          UPSTREAM_COMMIT_FULL=$(git rev-parse HEAD)
+          UPSTREAM_TAG=$(git describe --tags --always)
+          echo "short=$UPSTREAM_COMMIT" >> $GITHUB_OUTPUT
+          echo "full=$UPSTREAM_COMMIT_FULL" >> $GITHUB_OUTPUT
+          echo "tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
+
+      - name: Get patch info
+        id: patches
+        run: |
+          PATCH_COUNT=$(ls -1 patches/*.patch 2>/dev/null | wc -l)
+          echo "count=$PATCH_COUNT" >> $GITHUB_OUTPUT
+          if [ $PATCH_COUNT -gt 0 ]; then
+            PATCH_LIST=$(ls -1 patches/*.patch | xargs -n 1 basename | sed 's/^/- /')
+            echo "list<<EOF" >> $GITHUB_OUTPUT
+            echo "$PATCH_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          for arch in x64 ARM64; do
+            cp "release-artifacts/PCL2_CE_Patched_Release_${arch}/Plain Craft Launcher 2.exe" \
+               "release-files/PCL2_CE_Patched_Release_${arch}.exe"
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: |
+            ## Build Information
+
+            - **Upstream Project**: PCL-Community/PCL-CE
+            - **Upstream Commit**: ${{ steps.upstream.outputs.short }}
+            - **Upstream Tag**: `${{ steps.upstream.outputs.tag }}`
+            - **Full Commit**: `${{ steps.upstream.outputs.full }}`
+            - **Build Date**: ${{ github.event.head_commit.timestamp }}
+            - **Applied Patches**: ${{ steps.patches.outputs.count }}
+
+            ### Applied Patches
+            ${{ steps.patches.outputs.list }}
+
+            ### Our Changes
+            ${{ github.event.head_commit.message }}
+
+            ---
+
+            ### Download
+            - **x64**: PCL2_CE_Patched_Release_x64.exe
+            - **ARM64**: PCL2_CE_Patched_Release_ARM64.exe
+          files: release-files/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
