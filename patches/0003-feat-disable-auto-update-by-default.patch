@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?ZX=E5=A4=8F=E5=A4=9C=E4=B9=8B=E9=A3=8E?=
+ <snwcreations@qq.com>
+Date: Tue, 20 Oct 2026 23:26:02 +0800
+Subject: [PATCH] feat: disable auto-update by default
+
+Change default launcher auto-update behavior from DownloadAndAnnounce to Disable.
+This prevents the launcher from automatically checking and downloading updates.
+
+diff --git a/PCL.Core/App/Config.cs b/PCL.Core/App/Config.cs
+index 01f4a52b..0668d195 100644
+--- a/PCL.Core/App/Config.cs
++++ b/PCL.Core/App/Config.cs
+@@ -120,7 +120,7 @@ public static partial class Config
+         /// <summary>
+         /// 自动更新行为。
+         /// </summary>
+-        [ConfigItem<LauncherAutoUpdateBehavior>("SystemSystemUpdate", LauncherAutoUpdateBehavior.DownloadAndAnnounce, ConfigSource.Local)] public partial LauncherAutoUpdateBehavior UpdateMode { get; set; }
++        [ConfigItem<LauncherAutoUpdateBehavior>("SystemSystemUpdate", LauncherAutoUpdateBehavior.Disable, ConfigSource.Local)] public partial LauncherAutoUpdateBehavior UpdateMode { get; set; }
+ 
+         /// <summary>
+         /// 更新分支。
