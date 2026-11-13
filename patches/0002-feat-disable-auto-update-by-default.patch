@@ -8,10 +8,10 @@ Change default launcher auto-update behavior from DownloadAndAnnounce to Disable
 This prevents the launcher from automatically checking and downloading updates.
 
 diff --git a/PCL.Core/App/Config.cs b/PCL.Core/App/Config.cs
-index 01f4a52b..0668d195 100644
+index 69459b4b..5b87851c 100644
 --- a/PCL.Core/App/Config.cs
 +++ b/PCL.Core/App/Config.cs
-@@ -120,7 +120,7 @@ public static partial class Config
+@@ -115,7 +115,7 @@ public static partial class Config
          /// <summary>
          /// 自动更新行为。
          /// </summary>

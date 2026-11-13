@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?ZX=E5=A4=8F=E5=A4=9C=E4=B9=8B=E9=A3=8E?=
+ <snwcreations@qq.com>
+Date: Tue, 20 Oct 2026 22:56:50 +0800
+Subject: [PATCH] =?UTF-8?q?revert:=20"fix(install):=20=E4=B8=AD?=
+ =?UTF-8?q?=E5=9B=BD=E5=A4=A7=E9=99=86=E5=9C=B0=E5=8C=BA=E7=A6=81=E7=94=A8?=
+ =?UTF-8?q?=20Minecraft=20=E5=AE=89=E8=A3=85=E5=8A=9F=E8=83=BD=20(#3673)"?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit 8cd9d37491f08e1f8365622517aefed429b5e095.
+
+diff --git a/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs b/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs
+index cef7848c..a9c1769b 100644
+--- a/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs	
++++ b/Plain Craft Launcher 2/Modules/Minecraft/RestrictedFeaturePolicy.cs	
+@@ -8,10 +8,15 @@ internal static class RestrictedFeaturePolicy
+ {
+     internal static RegionAssessment Assess() => RegionPolicy.Evaluate(RegionPolicy.ReadWindowsSignals());
+ 
+-    internal static bool IsRestricted => Assess().IsRestricted;
++    // [PCL-CE-Without-3673] 本 fork 移除中国大陆区域的 Minecraft 功能限制。
++    // 保留上游实现，仅注释掉判定逻辑，使所有经由 RestrictedFeaturePolicy /
++    // RestrictedFeatures 的调用点直接放行。
++    // internal static bool IsRestricted => Assess().IsRestricted;
++    internal static bool IsRestricted => false;
+ 
+     internal static bool Check(string feature, bool showHint = true)
+     {
++        /*
+         var assessment = Assess();
+         if (!assessment.IsRestricted) return true;
+ 
+@@ -19,11 +24,15 @@ internal static class RestrictedFeaturePolicy
+         if (showHint)
+             HintService.Show(Hints.Error(Lang.Text("Region.Feature.Restricted")));
+         return false;
++        */
++        return true;
+     }
+ 
+     internal static void ThrowIfRestricted(string feature)
+     {
++        /*
+         if (Check(feature, false)) return;
+         throw new CancelledException();
++        */
+     }
+ }
