@@ -52,9 +52,9 @@ jobs:
           echo "tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Build Project
         run: |
